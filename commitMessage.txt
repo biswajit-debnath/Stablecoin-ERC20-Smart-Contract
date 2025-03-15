@@ -1,0 +1,23 @@
+feat(SCEngine): Implement health factor and minting functionality
+
+Changes:
+1. Added new imports:
+   - StableCoin contract
+   - AggregatorV3Interface for price feeds
+
+2. Added new state variables:
+   - Constants for threshold values and precision factors
+   - Mappings for user balances and price feeds
+   - Array for allowed collateral tokens
+
+3. Added new errors:
+   - SCEngine__mintingAmountMustBeMoreThanZero
+   - SCEngine__HealthFactorIsBroken
+
+4. Implemented core functions:
+   - _healthFactor: Calculates user's health factor
+   - _revertIfHealthFactorBroken: Checks if health factor is valid
+   - _collateralValueInDollarByCollateralAddress: Calculates collateral value
+   - mintSCoin: Allows users to mint stable coins
+   - getUserTotalCollateralValInDollars: Gets total collateral value
+
