@@ -34,8 +34,8 @@ contract SCEngine {
     
 
 
-    constructor(StableCoin _scoinAddress) {
-        i_scoin = StableCoin(_scoinAddress);
+    constructor(StableCoin _scoin) {
+        i_scoin = _scoin;
 
         // to do: handle adding collateral addresses to s_allowedCollateral
     }
