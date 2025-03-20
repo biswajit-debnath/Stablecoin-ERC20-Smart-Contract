@@ -21,7 +21,7 @@ contract SCEngine {
     uint256 private constant THRESHOLD_VALUE_FOR_HEALTH_FACTOR = 150;
     uint256 private constant THRESHOLD_PRECISION_VALUE_FOR_HEALTH_FACTOR = 100;
     uint256 private constant PRECISION_FACTOR = 1e18;
-    uint256 private constant PRICE_FEED_PRECISION = 1e10;
+    uint256 private constant PRICE_FEED_PRECISION = 1e8;
     uint256 private constant MINIMUM_HEALTH_FACTOR = 1e18;
 
 
@@ -34,25 +34,27 @@ contract SCEngine {
     
 
 
-    constructor(StableCoin _scoin) {
+    constructor(StableCoin _scoin, address[] memory _allowedCollaterals, address[] memory _priceFeedAddresses) {
         i_scoin = _scoin;
 
-        // to do: handle adding collateral addresses to s_allowedCollateral
+        for(uint256 i=0; i<_allowedCollaterals.length; i++) {
+            s_collateralToPriceFeeds[_allowedCollaterals[i]] = _priceFeedAddresses[i];
+            s_allowedCollateral.push(_allowedCollaterals[i]);
+        }
+
     }
 
 
 
     /* Internal Functions */
-    function _revertIfHealthFactorBroken() internal {
-        // Get the user's health factor
+    function _revertIfHealthFactorBroken() internal view {
         uint256 userHealthFactor = _healthFactor(msg.sender);
-        // If it's broken, revert
         if (userHealthFactor < MINIMUM_HEALTH_FACTOR) {
             revert SCEngine__HealthFactorIsBroken();
         }
     }
 
-    function _healthFactor(address user) public returns(uint256) {
+    function _healthFactor(address user) internal view returns(uint256) {
         // Get the current token minted to user
         uint256 totalTokensMinted = s_userSCoinBalance[user];
 
@@ -73,7 +75,7 @@ contract SCEngine {
         return healthFactor;
     }
 
-    function _collateralValueInDollarByCollateralAddress(address _collateralAddress) public returns(uint256) {
+    function _collateralValueInDollarByCollateralAddress(address _collateralAddress) internal view returns(uint256) {
         // Get total amount of collateral deposited by the user based on the colleteral address
         uint256 totalCollateralAmountInWei = s_userCollateralBalances[msg.sender][_collateralAddress]; // e: Check if the user has not deposited any amount on this collateral what will happen, will the totalCollateralAmount be considered 0 
 
@@ -81,7 +83,8 @@ contract SCEngine {
         address priceFeedAddress = s_collateralToPriceFeeds[_collateralAddress];
 
         // Get the price feed data from Chainlink price feed
-        (, int256 price,,,) = AggregatorV3Interface(priceFeedAddress).latestRoundData(); // to do: test this by defaulting to 3500 e10 
+        // (, int256 price,,,) = AggregatorV3Interface(priceFeedAddress).latestRoundData(); // to do: test this by defaulting to 3500 e10 
+        int256 price = 3500e10;
 
         uint256 normalizedPrice = uint256(price) * PRICE_FEED_PRECISION;
 
@@ -93,6 +96,15 @@ contract SCEngine {
         return adjustedCollateralValue;
     }
 
+    modifier isCollateralAllowed(address collateralType) {
+        for(uint256 i=0; i<s_allowedCollateral.length; i++) {
+            if(s_allowedCollateral[i] == collateralType) {
+                _;
+            }
+        }
+        revert SCEngine__TokenTypeNotApprovedForCollateral(collateralType);
+    }
+
 
     ////////////////////////////////////////////////////////////////////////////
     ////////////////////////////////////////////////////////////////////////////
@@ -100,13 +112,10 @@ contract SCEngine {
     ////////////////////////////////////////////////////////////////////////////
     ////////////////////////////////////////////////////////////////////////////
 
-    function depositCollateral(address _collateralType, uint256 _amountCollateral) external {
+    function depositCollateral(address _collateralType, uint256 _amountCollateral) external isCollateralAllowed(_collateralType) {
         if (_amountCollateral <= 0) {
             revert SCEngine__CollateralDepositAmountMustBeMoreThanZero();
         }
-        // if (!s_allowedCollateral[_collateralType]) {
-        //     revert SCEngine__TokenTypeNotApprovedForCollateral(_collateralType);
-        // } // to do: this needs to be modifier and needs to handle array instead of mapping
         s_userCollateralBalances[msg.sender][_collateralType] += _amountCollateral;
         emit CollateralDeposited(msg.sender, _collateralType, _amountCollateral);
         
@@ -126,7 +135,7 @@ contract SCEngine {
         i_scoin.mint(msg.sender, _amountToMint);
     }
 
-    function getUserTotalCollateralValInDollars() public returns(uint256) {
+    function getUserTotalCollateralValInDollars() public view returns(uint256) {
         uint256 totalCollateralValue = 0;
 
         for(uint256 i=0; i<s_allowedCollateral.length; i++) {
